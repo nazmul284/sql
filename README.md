@@ -78,6 +78,15 @@ Understanding data types is crucial for accurate data representation. In this se
   WHERE address like '%Dhaka%';
   ```
 
+- **Sorting Results**: Retrieve the names of customers from the "Customers" table, sorted alphabetically by their last names.
+
+  Example:
+  ```sql
+  SELECT CustomerName 
+  FROM Customers 
+  ORDER BY LastName;
+  ```
+
 - **Aggregate Function - Count**: Count the number of orders placed by each customer.
 
   Example:
@@ -107,7 +116,7 @@ Understanding data types is crucial for accurate data representation. In this se
   FROM products;
   ```
 
--**Common Table Expression (CTE)**: Create a CTE to calculate the total sales for each product category.
+- **Common Table Expression (CTE)**: Create a CTE to calculate the total sales for each product category.
   
   Example:
   ```sql
@@ -122,3 +131,30 @@ Understanding data types is crucial for accurate data representation. In this se
   ORDER BY TotalSales DESC;
   ```
 
+- **Subquery - IN**: Retrieve customers who have placed orders with a total amount greater than the average order amount.
+
+  Example:
+  ```sql
+  SELECT CustomerName
+  FROM Customers
+  WHERE CustomerID IN (
+      SELECT CustomerID
+      FROM Orders
+      WHERE TotalAmount > (
+          SELECT AVG(TotalAmount) FROM Orders
+      )
+  );
+  ```
+
+- **Subquery - EXISTS**: Retrieve customers who have placed at least one order.
+
+  Example:
+  ```sql
+  SELECT CustomerName 
+  FROM Customers 
+  WHERE EXISTS (
+      SELECT * 
+      FROM Orders 
+      WHERE Customers.CustomerID = Orders.CustomerID
+  );
+  ```
