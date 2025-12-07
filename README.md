@@ -28,6 +28,8 @@ Learning SQL empowers you to extract insights from data, automate workflows, and
 - [Performance Optimization](#performance-optimization)
 - [Database Security](#database-security)
 - [Real-World Scenarios](#real-world-scenarios)
+- [Modern SQL Features and Extensions](#modern-sql-features-and-extensions)
+- [Database Administration and Monitoring](#database-administration-and-monitoring)
 - [Best Practices](#best-practices)
 - [Learning Resources](#learning-resources)
 
@@ -249,6 +251,8 @@ CREATE INDEX idx_lastname ON employees(last_name);
 ### Transactions
 Ensure a group of SQL statements execute as a single unit:
 ```sql
+-- MySQL/SQL Server: START TRANSACTION
+-- PostgreSQL: BEGIN or BEGIN TRANSACTION
 START TRANSACTION;
 UPDATE accounts SET balance = balance - 100 WHERE account_id = 1;
 UPDATE accounts SET balance = balance + 100 WHERE account_id = 2;
@@ -265,6 +269,8 @@ SELECT * FROM customers WHERE status = 'active';
 ### Stored Procedures
 Reusable SQL code blocks with parameters and control structures:
 ```sql
+-- MySQL stored procedure (DELIMITER is MySQL-specific for command-line client)
+-- PostgreSQL uses CREATE OR REPLACE FUNCTION with PL/pgSQL
 DELIMITER //
 CREATE PROCEDURE GetCustomerOrderSummary(IN cust_id INT, OUT total_orders INT, OUT total_amount DECIMAL(10,2))
 BEGIN
@@ -294,6 +300,7 @@ DELIMITER ;
 ### Triggers
 Automatic execution of code in response to database events:
 ```sql
+-- MySQL trigger syntax
 CREATE TRIGGER update_product_stock
 AFTER INSERT ON order_items
 FOR EACH ROW
@@ -302,11 +309,23 @@ BEGIN
     SET stock_quantity = stock_quantity - NEW.quantity
     WHERE product_id = NEW.product_id;
 END;
+
+-- PostgreSQL requires a trigger function first:
+-- CREATE FUNCTION update_stock() RETURNS TRIGGER AS $$
+-- BEGIN
+--     UPDATE products SET stock_quantity = stock_quantity - NEW.quantity
+--     WHERE product_id = NEW.product_id;
+--     RETURN NEW;
+-- END;
+-- $$ LANGUAGE plpgsql;
+-- Then: CREATE TRIGGER update_product_stock AFTER INSERT ON order_items
+--       FOR EACH ROW EXECUTE FUNCTION update_stock();
 ```
 
 ### User-Defined Functions
 Custom functions for complex calculations:
 ```sql
+-- MySQL function syntax
 CREATE FUNCTION calculate_discount(price DECIMAL(10,2), customer_type VARCHAR(20))
 RETURNS DECIMAL(10,2)
 READS SQL DATA
@@ -325,7 +344,9 @@ BEGIN
 END;
 ```
 
-## Advanced SQL### Window Functions
+## Advanced SQL
+
+### Window Functions
 Powerful analytic functions for advanced data analysis:
 
 **ROW_NUMBER(), RANK(), DENSE_RANK():**
@@ -419,8 +440,22 @@ SELECT * FROM employee_hierarchy ORDER BY level, name;
 
 ### Pivot and Unpivot Operations
 Transforming row data to columns and vice versa:
+
+**MySQL - Conditional Aggregation (MySQL doesn't have native PIVOT):**
 ```sql
--- Pivot example (MySQL 8.0+)
+-- Pivot using CASE statements in MySQL
+SELECT 
+    customer_id,
+    SUM(CASE WHEN month = 'Jan' THEN sales_amount ELSE 0 END) AS Jan,
+    SUM(CASE WHEN month = 'Feb' THEN sales_amount ELSE 0 END) AS Feb,
+    SUM(CASE WHEN month = 'Mar' THEN sales_amount ELSE 0 END) AS Mar,
+    SUM(CASE WHEN month = 'Apr' THEN sales_amount ELSE 0 END) AS Apr
+FROM monthly_sales
+GROUP BY customer_id;
+```
+
+**SQL Server - Native PIVOT:**
+```sql
 SELECT *
 FROM (
     SELECT customer_id, month, sales_amount
@@ -428,7 +463,7 @@ FROM (
 ) AS source_table
 PIVOT (
     SUM(sales_amount)
-    FOR month IN ('Jan', 'Feb', 'Mar', 'Apr')
+    FOR month IN ([Jan], [Feb], [Mar], [Apr])
 ) AS pivot_table;
 ```
 
@@ -458,9 +493,9 @@ ORDER BY total_sales DESC;
 
 ### Advanced Aggregations
 
-**ROLLUP and CUBE for multi-level aggregations:**
+**ROLLUP and CUBE for multi-level aggregations (MySQL 8.0+, PostgreSQL, SQL Server):**
 ```sql
--- ROLLUP provides hierarchical totals
+-- ROLLUP provides hierarchical totals (supported in MySQL 8.0+, PostgreSQL, SQL Server)
 SELECT 
     COALESCE(region, 'All Regions') AS region,
     COALESCE(product_category, 'All Categories') AS category,
@@ -493,6 +528,7 @@ LEFT JOIN employees mgr ON emp.manager_id = mgr.employee_id;
 
 **Multiple table joins with conditions:**
 ```sql
+-- MySQL syntax
 SELECT 
     c.customer_name,
     o.order_date,
@@ -507,6 +543,9 @@ INNER JOIN products p ON oi.product_id = p.product_id
 WHERE o.order_date >= DATE_SUB(CURRENT_DATE, INTERVAL 30 DAY)
   AND c.status = 'active'
 ORDER BY c.customer_name, o.order_date;
+
+-- PostgreSQL syntax uses different interval notation
+-- WHERE o.order_date >= CURRENT_DATE - INTERVAL '30 days'
 ```
 
 ## Performance Optimization
@@ -520,13 +559,13 @@ EXPLAIN SELECT * FROM large_table WHERE indexed_column = 'value';
 
 2. **Proper indexing strategies:**
 ```sql
--- Composite index for multiple column searches
+-- Composite index for multiple column searches (all databases)
 CREATE INDEX idx_customer_date ON orders(customer_id, order_date);
 
--- Partial index for filtered queries
+-- Partial index for filtered queries (PostgreSQL, SQLite)
 CREATE INDEX idx_active_customers ON customers(customer_id) WHERE status = 'active';
 
--- Covering index to avoid table lookups
+-- Covering index to avoid table lookups (SQL Server, PostgreSQL 11+)
 CREATE INDEX idx_order_summary ON orders(customer_id, order_date) INCLUDE (total_amount);
 ```
 
@@ -577,8 +616,11 @@ REVOKE DELETE ON company_db.* FROM 'app_user'@'localhost';
 
 ### Data Encryption and Security
 
+**MySQL Encryption Functions:**
 ```sql
--- Encrypt sensitive data
+-- Encrypt sensitive data (MySQL specific)
+-- PostgreSQL uses pgcrypto extension: encrypt(data, key, 'aes')
+-- SQL Server uses EncryptByKey() function
 CREATE TABLE customer_sensitive (
     customer_id INT PRIMARY KEY,
     encrypted_ssn VARBINARY(255),
@@ -606,6 +648,9 @@ FROM customer_sensitive;
 
 **Customer Lifetime Value calculation:**
 ```sql
+-- MySQL syntax shown; adjust DATEDIFF for other databases
+-- PostgreSQL: (CURRENT_DATE - c.registration_date)
+-- SQL Server: DATEDIFF(day, c.registration_date, CURRENT_DATE)
 WITH customer_metrics AS (
     SELECT 
         c.customer_id,
@@ -613,7 +658,7 @@ WITH customer_metrics AS (
         COUNT(DISTINCT o.order_id) AS total_orders,
         SUM(o.total_amount) AS total_spent,
         MAX(o.order_date) AS last_order_date,
-        DATEDIFF(CURRENT_DATE, c.registration_date) AS days_as_customer
+        DATEDIFF(CURRENT_DATE, c.registration_date) AS days_as_customer  -- MySQL syntax
     FROM customers c
     LEFT JOIN orders o ON c.customer_id = o.customer_id
     GROUP BY c.customer_id, c.registration_date
@@ -644,9 +689,12 @@ ORDER BY avg_annual_value DESC;
 
 **Monthly revenue analysis with growth rates:**
 ```sql
+-- MySQL syntax shown
+-- PostgreSQL: TO_CHAR(order_date, 'YYYY-MM')
+-- SQL Server: FORMAT(order_date, 'yyyy-MM')
 WITH monthly_revenue AS (
     SELECT 
-        DATE_FORMAT(order_date, '%Y-%m') AS month_year,
+        DATE_FORMAT(order_date, '%Y-%m') AS month_year,  -- MySQL
         SUM(total_amount) AS monthly_revenue
     FROM orders
     WHERE order_date >= DATE_SUB(CURRENT_DATE, INTERVAL 24 MONTH)
@@ -663,7 +711,7 @@ revenue_with_growth AS (
 )
 SELECT 
     month_year,
-    FORMAT(monthly_revenue, 2) AS formatted_revenue,
+    ROUND(monthly_revenue, 2) AS formatted_revenue,  -- Or FORMAT(monthly_revenue, 2) in MySQL
     ROUND(month_over_month_growth, 2) AS growth_percentage,
     CASE 
         WHEN month_over_month_growth > 10 THEN 'High Growth'
@@ -786,6 +834,35 @@ FOR SYSTEM_TIME BETWEEN '2024-01-01' AND '2024-12-31';
 ### Advanced Analytics with SQL
 
 **Percentile and Statistical Functions:**
+
+**MySQL (using variables for percentiles):**
+```sql
+-- Calculate percentiles and statistical measures in MySQL
+SELECT 
+    department,
+    AVG(salary) AS avg_salary,
+    STDDEV(salary) AS salary_stddev,
+    VARIANCE(salary) AS salary_variance
+FROM employees
+GROUP BY department;
+
+-- Calculate median in MySQL (more complex)
+SELECT 
+    department,
+    AVG(salary) AS median_salary
+FROM (
+    SELECT 
+        department,
+        salary,
+        ROW_NUMBER() OVER (PARTITION BY department ORDER BY salary) AS row_num,
+        COUNT(*) OVER (PARTITION BY department) AS total_count
+    FROM employees
+) AS ranked
+WHERE row_num IN (FLOOR((total_count + 1) / 2), CEIL((total_count + 1) / 2))
+GROUP BY department;
+```
+
+**PostgreSQL/SQL Server (with PERCENTILE_CONT):**
 ```sql
 -- Calculate percentiles and statistical measures
 SELECT 
@@ -795,7 +872,7 @@ SELECT
     PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY salary) AS q1_salary,
     PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY salary) AS q3_salary,
     STDDEV(salary) AS salary_stddev,
-    VAR(salary) AS salary_variance
+    VAR_POP(salary) AS salary_variance
 FROM employees
 GROUP BY department;
 ```
@@ -824,15 +901,17 @@ sales_with_trends AS (
     FROM daily_sales
 )
 SELECT * FROM sales_with_trends
-WHERE sale_date >= CURRENT_DATE - INTERVAL '30' DAY
+WHERE sale_date >= CURRENT_DATE - INTERVAL 30 DAY  -- MySQL syntax
+-- For PostgreSQL: WHERE sale_date >= CURRENT_DATE - INTERVAL '30 days'
 ORDER BY sale_date;
 ```
 
 ### Graph Queries and Hierarchical Data
 
-**Recursive CTEs for Organization Charts:**
+**Recursive CTEs for Organization Charts (PostgreSQL with Arrays):**
 ```sql
 -- Complex hierarchical query with level and path tracking
+-- Note: ARRAY syntax is PostgreSQL-specific
 WITH RECURSIVE org_chart AS (
     -- Base case: CEO and top executives
     SELECT 
@@ -873,19 +952,25 @@ ORDER BY level, name;
 
 ### Database Sharding and Federation
 
-**Horizontal Partitioning Strategies:**
+**Horizontal Partitioning Strategies (PostgreSQL):**
 ```sql
--- Range-based sharding example
+-- PostgreSQL table inheritance for sharding
+-- Create master table
+CREATE TABLE customers_master (
+    customer_id INT PRIMARY KEY,
+    name VARCHAR(100),
+    email VARCHAR(100),
+    created_at TIMESTAMP
+);
+
 -- Shard 1: customers with ID 1-1000000
 CREATE TABLE customers_shard_1 (
-    customer_id INT CHECK (customer_id BETWEEN 1 AND 1000000),
-    -- other columns
+    CHECK (customer_id BETWEEN 1 AND 1000000)
 ) INHERITS (customers_master);
 
 -- Shard 2: customers with ID 1000001-2000000
 CREATE TABLE customers_shard_2 (
-    customer_id INT CHECK (customer_id BETWEEN 1000001 AND 2000000),
-    -- other columns
+    CHECK (customer_id BETWEEN 1000001 AND 2000000)
 ) INHERITS (customers_master);
 
 -- Function to determine shard
@@ -905,8 +990,9 @@ $$ LANGUAGE plpgsql;
 
 ### Machine Learning Integration
 
-**PostgreSQL with ML Extensions:**
+**PostgreSQL with MADlib Extension:**
 ```sql
+-- First install MADlib extension: CREATE EXTENSION madlib;
 -- Using MADlib for machine learning
 -- Linear regression example
 SELECT madlib.linregr_train(
@@ -948,16 +1034,18 @@ EXEC sp_execute_external_script
 ### Database Backup and Recovery
 
 **MySQL Backup Strategies:**
-```sql
--- Create full backup
+```bash
+# Create full backup (shell command)
 mysqldump --single-transaction --routines --triggers company_db > backup.sql
 
--- Point-in-time recovery setup
+# Restore from backup (shell command)
+mysql company_db < backup.sql
+```
+
+```sql
+-- Point-in-time recovery setup (SQL commands)
 SET GLOBAL binlog_format = 'ROW';
 SHOW BINARY LOGS;
-
--- Restore from backup
-mysql company_db < backup.sql
 ```
 
 **PostgreSQL Backup with pg_dump:**
@@ -1016,7 +1104,7 @@ ORDER BY time DESC;
 
 **PostgreSQL System Monitoring:**
 ```sql
--- Query performance statistics
+-- Query performance statistics (requires: CREATE EXTENSION pg_stat_statements;)
 SELECT 
     query,
     calls,
@@ -1127,20 +1215,22 @@ END;
 
 **Data Masking for Development:**
 ```sql
--- Create masked copy of production data
+-- Create masked copy of production data (MySQL/PostgreSQL compatible)
 CREATE TABLE customers_dev AS
 SELECT 
     customer_id,
     CONCAT('Customer_', customer_id) AS name,
     CONCAT('user', customer_id, '@example.com') AS email,
-    LEFT(phone, 3) + '-XXX-XXXX' AS phone,
-    'XXX-XX-' + RIGHT(ssn, 4) AS ssn,
+    CONCAT(LEFT(phone, 3), '-XXX-XXXX') AS phone,  -- MySQL/PostgreSQL: use CONCAT
+    CONCAT('XXX-XX-', RIGHT(ssn, 4)) AS ssn,       -- SQL Server: use + operator
     registration_date,
     status
 FROM customers_prod;
 ```
 
-## Best Practices### Database Design
+## Best Practices
+
+### Database Design
 - Use meaningful and consistent naming conventions
 - Normalize your database appropriately (usually 3NF)
 - Choose appropriate data types to save space
